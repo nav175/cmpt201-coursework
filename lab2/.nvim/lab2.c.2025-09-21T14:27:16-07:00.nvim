@@ -1,0 +1,17 @@
+#define _POSIX_C_SOURCE 200809L
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+
+int main() {
+  char *usrInput = NULL;
+  size_t size = 0;
+  printf("Enter the path to the program: ");
+  getline(&usrInput, &size, stdin);
+  printf("User entered %s\n", usrInput);
+
+  char* saveptr;
+  char *token = strtok_r(usrInput, " \n", &saveptr);
+  printf("%s\n", token);
+  return 0;
+}

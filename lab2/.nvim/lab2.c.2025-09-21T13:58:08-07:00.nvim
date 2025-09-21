@@ -1,0 +1,11 @@
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+
+int main() {
+  char *input = NULL;
+  printf("Enter the path to the program: ");
+  getline(&input, stdin);
+  printf("User entered %c\n", input);
+  return 0;
+}

@@ -1,0 +1,59 @@
+#define _POSIX_C_SOURCE 200809L
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
+int main() {
+
+  // declare the variables for the getline()
+  char *usrInput = NULL;
+  size_t size = 0;
+
+  // Start a while loop to take the user input forever until the program is
+  // terminated
+  while (1) {
+
+    // get user input
+    printf("Enter the path to the program: \n");
+    printf("> ");
+
+    if (getline(&usrInput, &size, stdin) == -1) {
+      break;
+    }
+
+    // create a child process for looping
+    pid_t child_pid = fork();
+    if (child_pid == -1) { // if fork fails
+      perror("fork");
+      break;
+    }
+    if (child_pid == 0) {
+
+      // CHILD
+
+      // declare variables for strtok_r and then call the function.
+      char *saveptr;
+      char *token = strtok_r(usrInput, " \n", &saveptr);
+      if (token == NULL) {
+        // if the input was null
+        exit(0);
+      }
+
+      // executing the command user entered.
+      execl(token, token, NULL);
+
+      // if exec fails (the current program is still in memory)
+      perror("execl");
+      exit(1);
+    } else {
+      // PARENT
+      // wait for the child to finish
+      waitpid(child_pid, NULL, 0);
+    }
+  }
+  free(usrInput);
+  return 0;
+}
