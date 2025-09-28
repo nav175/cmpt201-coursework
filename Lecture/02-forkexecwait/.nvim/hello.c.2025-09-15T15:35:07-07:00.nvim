@@ -5,7 +5,7 @@
 int main() {
   for (int i = 0; i < 20; i++) {
     fork();
-    printf("Sleeping %d\n", i);
+    printf("Sleeping ", i, "\n");
     sleep(1);
   }
   printf("Done\n");
