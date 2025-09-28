@@ -1,0 +1,15 @@
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+int main() {
+  printf("starting main...");
+
+  pid_t pid = fork();
+  int wstatus = 0;
+  if (waitpid(pid, &wstatus, 0) == -1) {
+    if (WIFEXITED(wstatus)) {
+      printf("Reason for exit: %d\n", WEXITSTATUS(wstatus));
+    }
+  }
+}
