@@ -1,0 +1,34 @@
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+// header for memory block
+struct header {
+  uint64_t size;
+  struct header *next;
+};
+
+int main() {
+  void *heap_start = sbrk(256);
+  if (heap_start == (void *)-1) {
+    perror("sbrk failed");
+    exit(EXIT_FAILURE);
+  }
+
+  struct header *block1 = (struct header *)heap_start;
+
+  struct header *block2 = (struct header *)((char *)heap_start + 128);
+
+  block1->size = 128;
+  block1->next = NULL;
+  block2->size = 128;
+  block2->next = block1;
+  printf("Block 1 -> size: %llu, next: %p\n", block1->size,
+         (void *)block1->next);
+  printf("The start address of block1 is: %p\n", (void *)block1);
+  printf("Block 2 -> size: %llu, next: %p\n", block2->size,
+         (void *)block2->next);
+  return 0;
+}
