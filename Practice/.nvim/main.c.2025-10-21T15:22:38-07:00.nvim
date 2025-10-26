@@ -1,0 +1,21 @@
+#include <stddef.h> // Include for offsetof
+#include <stdio.h>
+
+// Define the structure
+struct MyStruct {
+  char a;
+  int b;
+  char c;
+};
+
+int main() {
+  // Print the size of the entire structure
+  printf("Total size of struct: %zu bytes\n", sizeof(struct MyStruct));
+
+  //Print the offsets to see the padding
+  printf("Offset of char a: %zu\n", offsetof(struct MyStruct, a));
+  printf("Offset of int b:  %zu\n", offsetof(struct MyStruct, b));
+  printf("Offset of char c: %zu\n", offsetof(struct MyStruct, c));
+
+  return 0;
+}
