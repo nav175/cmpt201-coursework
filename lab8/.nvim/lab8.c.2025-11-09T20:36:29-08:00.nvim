@@ -1,0 +1,178 @@
+#include "uthash.h"
+#include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define MAX_WORD_LEN 50
+#define NUM_CHUNKS 4
+
+typedef struct {
+  char word[MAX_WORD_LEN];
+  int count;
+  UT_hash_handle hh;
+} word_count;
+
+typedef struct {
+  char *text;
+  long size;
+} text_chunk_t;
+
+typedef struct {
+  word_count **word_counts;
+  pthread_mutex_t *count_mutex;
+  char *text_chunk;
+  long chunk_size;
+} thread_args_t;
+
+typedef struct {
+  text_chunk_t chunks[NUM_CHUNKS];
+  word_count *word_counts;
+  pthread_t threads[NUM_CHUNKS];
+  thread_args_t threads_args[NUM_CHUNKS];
+  pthread_mutex_t count_mutex;
+} args_t;
+
+int get_next_word(char *text, long text_size, char **word_start,
+                  int *word_len) {
+  char *current = text;
+  char *end = text + text_size;
+
+  while (current < end && !isalpha(*current)) {
+    current++;
+  }
+
+  if (current == end) {
+    return 0;
+  }
+
+  *word_start = current;
+  while (current < end && isalpha(*current)) {
+    *current = tolower(*current);
+    current++;
+  }
+  *word_len = current - *word_start;
+
+  return 1;
+}
+
+void pack_args(thread_args_t *arg, word_count **word_counts,
+               pthread_mutex_t *mutex, char *text, long size) {
+  arg->word_counts = word_counts;
+  arg->count_mutex = mutex;
+  arg->text_chunk = text;
+  arg->chunk_size = size;
+}
+
+int sort_by_word(word_count *a, word_count *b) {
+  return strcmp(a->word, b->word);
+}
+
+void print_counts(word_count *word_counts) {
+  word_count *current_word, *tmp;
+  HASH_ITER(hh, word_counts, current_word, tmp) {
+    printf("%-30s %d\n", current_word->word, current_word->count);
+  }
+}
+
+void add_word_counts_in_chunk(thread_args_t *args) {
+  char *text_chunk = args->text_chunk;
+  long chunk_size = args->chunk_size;
+  char *next_word_start = NULL;
+  int word_len = 0;
+  char current_word[MAX_WORD_LEN];
+
+  while (get_next_word(text_chunk, chunk_size, &next_word_start, &word_len)) {
+    if (word_len >= MAX_WORD_LEN) {
+      word_len = MAX_WORD_LEN - 1;
+    }
+    strncpy(current_word, next_word_start, word_len);
+    current_word[word_len] = 0;
+
+    pthread_mutex_lock(args->count_mutex);
+
+    word_count *existing_entry = NULL;
+    HASH_FIND_STR(*(args->word_counts), current_word, existing_entry);
+
+    if (existing_entry == NULL) {
+      existing_entry = (word_count *)malloc(sizeof(word_count));
+      strncpy(existing_entry->word, current_word, MAX_WORD_LEN);
+      existing_entry->count = 1;
+      HASH_ADD_STR(*(args->word_counts), word, existing_entry);
+    } else {
+      existing_entry->count++;
+    }
+
+    pthread_mutex_unlock(args->count_mutex);
+
+    text_chunk = next_word_start + word_len;
+    chunk_size = chunk_size - (next_word_start + word_len - text_chunk);
+  }
+}
+
+void *counter_thread_func(void *thread_arg) {
+  thread_args_t *args = (thread_args_t *)thread_arg;
+  add_word_counts_in_chunk(args);
+  return NULL;
+}
+
+void count_words_seq(args_t *p_args) {
+  pthread_mutex_init(&p_args->count_mutex, NULL);
+  for (int i = 0; i < NUM_CHUNKS; i++) {
+    pack_args(&p_args->threads_args[i], &p_args->word_counts,
+              &p_args->count_mutex, p_args->chunks[i].text,
+              p_args->chunks[i].size);
+    add_word_counts_in_chunk(&p_args->threads_args[i]);
+  }
+  pthread_mutex_destroy(&p_args->count_mutex);
+}
+
+void count_words_parallel(args_t *p_args) {
+  pthread_mutex_init(&p_args->count_mutex, NULL);
+
+  for (int i = 0; i < NUM_CHUNKS; i++) {
+    pack_args(&p_args->threads_args[i], &p_args->word_counts,
+              &p_args->count_mutex, p_args->chunks[i].text,
+              p_args->chunks[i].size);
+
+    pthread_create(&p_args->threads[i], NULL, counter_thread_func,
+                   &p_args->threads_args[i]);
+  }
+
+  for (int i = 0; i < NUM_CHUNKS; i++) {
+    pthread_join(p_args->threads[i], NULL);
+  }
+
+  pthread_mutex_destroy(&p_args->count_mutex);
+}
+
+int main(int argc, char *argv[]) {
+  char *text_chunks[] = {"The quick brown fox jumps over the lazy dog",
+                         "Never underestimate the power of a good book",
+                         "The brown fox is quick and the fox is brown",
+                         "The quick brown fox jumps over the lazy dog again"};
+
+  args_t args;
+  args.word_counts = NULL;
+
+  for (int i = 0; i < NUM_CHUNKS; i++) {
+    args.chunks[i].text = text_chunks[i];
+    args.chunks[i].size = strlen(text_chunks[i]);
+  }
+
+  // count_words_seq(&args);
+  count_words_parallel(&args);
+
+  HASH_SORT(args.word_counts, sort_by_word);
+
+  printf("Word                            Count\n");
+  print_counts(args.word_counts);
+
+  word_count *current_word, *tmp;
+  HASH_ITER(hh, args.word_counts, current_word, tmp) {
+    HASH_DEL(args.word_counts, current_word);
+    free(current_word);
+  }
+
+  return 0;
+}
